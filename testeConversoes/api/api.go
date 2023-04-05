@@ -78,3 +78,29 @@ func handleExchange(w http.ResponseWriter, r *http.Request) {
         FromCurrency:    from,
         ToCurrency:      to,
         Rate:
+
+/*          Desenvolva uma REST API utilizando a linguagem GO
+            e orientação a objetos que faça conversão de moedas.
+
+            Especifícações:
+
+            A URL da requisição deve seguir o seguinte formato:
+            http://localhost:8000/exchange/{amount}/{from}/{to}/{rate}
+            http://localhost:8000/exchange/10/BRL/USD/4.50
+            A resposta deve seguir o seguinte formato:
+            {
+            "valorConvertido": 45,
+            "simboloMoeda": "$"
+            }
+
+            * Conversões:
+            * De Real para Dólar;
+            * De Dólar para Real;
+            * De Real para Euro;
+            * De Euro para Real;
+            * De BTC para Dolar;
+            * De BTC para Real;
+
+            * Salvar os dados no banco de dados:
+            * criar uma rotina para salvar o dados para consultas futuras
+ */
