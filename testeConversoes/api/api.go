@@ -43,7 +43,7 @@ func main() {
     }
 
     // Iniciar o servidor HTTP
-    log.Fatal(http.ListenAndServe(":8000", router))
+    log.Fatal(http.ListenAndServe(":8080", router))
 }
 
 func handleExchange(w http.ResponseWriter, r *http.Request) {
