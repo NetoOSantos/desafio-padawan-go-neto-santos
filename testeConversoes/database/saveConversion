@@ -1,0 +1,23 @@
+func saveConversion(amount float64, from string, to string, rate float64, result float64) error {
+	db, err := sql.Open("sqlite3", "./data.db")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	query := `INSERT INTO conversions(amount, from_currency, to_currency, rate, result)
+              VALUES (?, ?, ?, ?, ?)`
+
+	stmt, err := db.Prepare(query)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(amount, from, to, rate, result)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
