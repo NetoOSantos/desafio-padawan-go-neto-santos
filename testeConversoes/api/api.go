@@ -2,24 +2,25 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/ericlagergren/decimal"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 )
 
 type Conversion struct {
-	ID              int64           `json:"id"`
-	FromCurrency    string          `json:"fromCurrency"`
-	ToCurrency      string          `json:"toCurrency"`
-	Rate            decimal.Decimal `json:"rate"`
-	Amount          decimal.Decimal `json:"amount"`
-	ConvertedAmount decimal.Decimal `json:"convertedAmount"`
-	CreatedAt       time.Time       `json:"createdAt"`
+	ID              int64     `json:"id"`
+	FromCurrency    string    `json:"fromCurrency"`
+	ToCurrency      string    `json:"toCurrency"`
+	Rate            float64   `json:"rate"`
+	Amount          float64   `json:"amount"`
+	ConvertedAmount float64   `json:"convertedAmount"`
+	CreatedAt       time.Time `json:"createdAt"`
 }
 
 func main() {
@@ -50,55 +51,64 @@ func handleExchange(w http.ResponseWriter, r *http.Request) {
 	amount, _ := strconv.ParseFloat(vars["amount"], 64)
 	from := vars["from"]
 	to := vars["to"]
-	rate, _ := decimal.NewFromString(vars["rate"])
+	rate, _ := strconv.ParseFloat(vars["rate"], 64)
 
 	// Calcular a conversão de moedas
-	var convertedAmount decimal.Decimal
+	var convertedAmount float64
 	if from == "BRL" && to == "USD" {
-		convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
+		convertedAmount = amount * rate
 	} else if from == "USD" && to == "BRL" {
-		convertedAmount = decimal.NewFromFloat(amount).Div(rate)
+		convertedAmount = amount / rate
 	} else if from == "BRL" && to == "EUR" {
-		convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
+		convertedAmount = amount * rate
 	} else if from == "EUR" && to == "BRL" {
-		convertedAmount = decimal.NewFromFloat(amount).Div(rate)
+		convertedAmount = amount / rate
 	} else if from == "BTC" && to == "USD" {
-		convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
+		convertedAmount = amount * rate
 	} else if from == "BTC" && to == "BRL" {
-		convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
+		convertedAmount = amount * rate
 	} else {
 		http.Error(w, "Invalid conversion", http.StatusBadRequest)
 		return
 	}
+
+	// Criar um objeto Conversion com os dados da conversão
+	conv := Conversion{
+		FromCurrency:    from,
+		ToCurrency:      to,
+		Rate:            rate,
+		Amount:          amount,
+		ConvertedAmount: convertedAmount,
+		CreatedAt:       time.Now(),
+	}
+
+	// Salvar a conversão no banco de dados
+func saveConversion(db *sql.DB, c Conversion) error {
+	query := `INSERT INTO conversions(from_currency, to_currency, rate, amount, converted_amount, created_at)
+	VALUES (?, ?, ?, ?, ?, ?)`
+	_, err := db.Exec(query, c.FromCurrency, c.ToCurrency, c.Rate, c.Amount, c.ConvertedAmount, c.CreatedAt)
+	return err
 }
 
-// Criar uma nova conversão
-func conv(amount decimal.Decimal, from string, to string, rate decimal.Decimal) (decimal.Decimal, string) {
-	// Define a quantidade de casas decimais para o resultado
-	decimal.DivisionPrecision = 2
-
-	// Realiza a conversão para a moeda desejada
-	var result decimal.Decimal
-	if from == "BRL" {
-		result = amount.Div(rate)
-	} else if to == "BRL" {
-		result = amount.Mul(rate)
-	} else {
-		result = amount
+// Recuperar as conversões do banco de dados
+func getConversions(db *sql.DB) ([]Conversion, error) {
+	query := "SELECT id, from_currency, to_currency, rate, amount, converted_amount, created_at FROM conversions ORDER BY id DESC"
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
 	}
+	defer rows.Close()
 
-	// Retorna o valor convertido e o símbolo da moeda
-	var symbol string
-	if to == "USD" || from == "USD" {
-		symbol = "$"
-	} else if to == "EUR" || from == "EUR" {
-		symbol = "€"
-	} else if to == "BTC" || from == "BTC" {
-		symbol = "฿"
-	} else {
-		symbol = "R$"
+	conversions := []Conversion{}
+	for rows.Next() {
+		c := Conversion{}
+		err := rows.Scan(&c.ID, &c.FromCurrency, &c.ToCurrency, &c.Rate, &c.Amount, &c.ConvertedAmount, &c.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		conversions = append(conversions, c)
 	}
-	return result, symbol
+	return conversions, nil
 }
 
 /*          Desenvolva uma REST API utilizando a linguagem GO
