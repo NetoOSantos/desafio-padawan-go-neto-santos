@@ -1,83 +1,105 @@
 package main
 
 import (
-    "database/sql"
-    "encoding/json"
-    "fmt"
-    "log"
-    "net/http"
-    "strconv"
-    "time"
+	"database/sql"
+	"log"
+	"net/http"
+	"strconv"
+	"time"
 
-    "github.com/gorilla/mux"
-    _ "github.com/go-sql-driver/mysql"
-    "github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/gorilla/mux"
 )
 
 type Conversion struct {
-    ID              int64           `json:"id"`
-    FromCurrency    string          `json:"fromCurrency"`
-    ToCurrency      string          `json:"toCurrency"`
-    Rate            decimal.Decimal `json:"rate"`
-    Amount          decimal.Decimal `json:"amount"`
-    ConvertedAmount decimal.Decimal `json:"convertedAmount"`
-    CreatedAt       time.Time       `json:"createdAt"`
+	ID              int64           `json:"id"`
+	FromCurrency    string          `json:"fromCurrency"`
+	ToCurrency      string          `json:"toCurrency"`
+	Rate            decimal.Decimal `json:"rate"`
+	Amount          decimal.Decimal `json:"amount"`
+	ConvertedAmount decimal.Decimal `json:"convertedAmount"`
+	CreatedAt       time.Time       `json:"createdAt"`
 }
 
 func main() {
-    // Configurar o roteador da API
-    router := mux.NewRouter().StrictSlash(true)
-    router.HandleFunc("/exchange/{amount}/{from}/{to}/{rate}", handleExchange)
+	// Configurar o roteador da API
+	router := mux.NewRouter().StrictSlash(true)
+	router.HandleFunc("/exchange/{amount}/{from}/{to}/{rate}", handleExchange)
 
-    // Configurar o banco de dados
-    db, err := sql.Open("mysql", "user:password@/database")
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer db.Close()
+	// Configurar o banco de dados
+	db, err := sql.Open("mysql", "user:password@/database")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 
-    // Verificar a conexão com o banco de dados
-    err = db.Ping()
-    if err != nil {
-        log.Fatal(err)
-    }
+	// Verificar a conexão com o banco de dados
+	err = db.Ping()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-    // Iniciar o servidor HTTP
-    log.Fatal(http.ListenAndServe(":8080", router))
+	// Iniciar o servidor HTTP
+	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
 func handleExchange(w http.ResponseWriter, r *http.Request) {
-    // Obter os parâmetros da URL
-    vars := mux.Vars(r)
-    amount, _ := strconv.ParseFloat(vars["amount"], 64)
-    from := vars["from"]
-    to := vars["to"]
-    rate, _ := decimal.NewFromString(vars["rate"])
+	// Obter os parâmetros da URL
+	vars := mux.Vars(r)
+	amount, _ := strconv.ParseFloat(vars["amount"], 64)
+	from := vars["from"]
+	to := vars["to"]
+	rate, _ := decimal.NewFromString(vars["rate"])
 
-    // Calcular a conversão de moedas
-    var convertedAmount decimal.Decimal
-    if from == "BRL" && to == "USD" {
-        convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
-    } else if from == "USD" && to == "BRL" {
-        convertedAmount = decimal.NewFromFloat(amount).Div(rate)
-    } else if from == "BRL" && to == "EUR" {
-        convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
-    } else if from == "EUR" && to == "BRL" {
-        convertedAmount = decimal.NewFromFloat(amount).Div(rate)
-    } else if from == "BTC" && to == "USD" {
-        convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
-    } else if from == "BTC" && to == "BRL" {
-        convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
-    } else {
-        http.Error(w, "Invalid conversion", http.StatusBadRequest)
-        return
-    }
+	// Calcular a conversão de moedas
+	var convertedAmount decimal.Decimal
+	if from == "BRL" && to == "USD" {
+		convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
+	} else if from == "USD" && to == "BRL" {
+		convertedAmount = decimal.NewFromFloat(amount).Div(rate)
+	} else if from == "BRL" && to == "EUR" {
+		convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
+	} else if from == "EUR" && to == "BRL" {
+		convertedAmount = decimal.NewFromFloat(amount).Div(rate)
+	} else if from == "BTC" && to == "USD" {
+		convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
+	} else if from == "BTC" && to == "BRL" {
+		convertedAmount = decimal.NewFromFloat(amount).Mul(rate)
+	} else {
+		http.Error(w, "Invalid conversion", http.StatusBadRequest)
+		return
+	}
+}
 
-    // Criar uma nova conversão
-    conv := Conversion{
-        FromCurrency:    from,
-        ToCurrency:      to,
-        Rate:
+// Criar uma nova conversão
+func conv(amount decimal.Decimal, from string, to string, rate decimal.Decimal) (decimal.Decimal, string) {
+	// Define a quantidade de casas decimais para o resultado
+	decimal.DivisionPrecision = 2
+
+	// Realiza a conversão para a moeda desejada
+	var result decimal.Decimal
+	if from == "BRL" {
+		result = amount.Div(rate)
+	} else if to == "BRL" {
+		result = amount.Mul(rate)
+	} else {
+		result = amount
+	}
+
+	// Retorna o valor convertido e o símbolo da moeda
+	var symbol string
+	if to == "USD" || from == "USD" {
+		symbol = "$"
+	} else if to == "EUR" || from == "EUR" {
+		symbol = "€"
+	} else if to == "BTC" || from == "BTC" {
+		symbol = "฿"
+	} else {
+		symbol = "R$"
+	}
+	return result, symbol
+}
 
 /*          Desenvolva uma REST API utilizando a linguagem GO
             e orientação a objetos que faça conversão de moedas.
@@ -103,4 +125,4 @@ func handleExchange(w http.ResponseWriter, r *http.Request) {
 
             * Salvar os dados no banco de dados:
             * criar uma rotina para salvar o dados para consultas futuras
- */
+*/
